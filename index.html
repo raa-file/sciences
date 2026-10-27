@@ -340,7 +340,7 @@ ol.ordlist{list-style:none;margin:0;padding:0}
 @media (max-width:900px){ .certgrid{grid-template-columns:1fr 1fr} }
 @media (max-width:420px){ .certgrid{grid-template-columns:1fr} .certcard{min-height:0} }
 .cert{width:100%;max-width:900px;aspect-ratio:1.414;background:#fff;color:var(--ink);border-radius:6px;padding:22px;position:relative;box-shadow:0 30px 60px -24px rgba(0,0,0,.7)}
-.cert-in{height:100%;border:3px solid var(--gold);outline:1.5px solid var(--gold);outline-offset:-10px;border-radius:4px;padding:5% 7%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at top,#F4FBFA,#fff 60%)}
+.cert-in{min-height:100%;border:3px solid var(--gold);outline:1.5px solid var(--gold);outline-offset:-10px;border-radius:4px;padding:4% 6%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at top,#F4FBFA,#fff 60%)}
 .cert .c-logo{display:flex;align-items:center;gap:8px;font-family:'Reem Kufi';font-size:clamp(14px,2vw,18px);color:var(--teal-d)}
 .cert .c-logo svg{width:28px;height:28px}
 .cert h2{font-size:clamp(24px,4.4vw,44px);color:var(--ink);margin:2% 0 1%}
@@ -350,7 +350,17 @@ ol.ordlist{list-style:none;margin:0;padding:0}
 .cert .c-skills{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:1.5% 0;font-size:clamp(11px,1.5vw,14px)}
 .cert .c-skills span{border:1.5px solid var(--teal-d);color:var(--teal-d);border-radius:999px;padding:1px 10px}
 .cert .c-foot{display:flex;justify-content:space-between;width:100%;margin-top:auto;font-size:clamp(11px,1.5vw,14px);color:var(--ink2);align-items:end}
-.cert .seal{width:clamp(56px,9vw,86px);height:clamp(56px,9vw,86px);border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--gold2),var(--gold) 65%,var(--gold-d));display:grid;place-items:center;color:#2B1E04;font-family:'Reem Kufi';font-size:clamp(10px,1.4vw,13px);line-height:1.3;box-shadow:inset 0 0 0 4px rgba(255,255,255,.4)}
+.cert .seal{display:block;width:clamp(108px,18vw,168px);color:#B0222F;transform:rotate(-7deg);mix-blend-mode:multiply;line-height:0;flex:none}
+.cert .c-foot > span:not(.seal){flex:1;min-width:0}
+.cert .c-foot > span:last-child{text-align:left}
+.cert .c-foot > span:first-child{text-align:right}
+.cert .seal .stamp{width:100%;height:auto;display:block;overflow:visible}
+.cert .c-case{display:inline-flex;align-items:center;gap:12px;margin:1% 0 .8%;padding:8px 22px 8px 18px;border:2px solid var(--teal-d);border-radius:14px;background:linear-gradient(180deg,#F1FAF8,#E3F4F1);box-shadow:0 2px 0 rgba(18,133,123,.15)}
+.cert .c-case .cc-ic{width:clamp(30px,4.6vw,46px);height:clamp(30px,4.6vw,46px);color:var(--teal-d);flex:none}
+.cert .c-case .cc-ic svg{width:100%;height:100%}
+.cert .c-case .cc-txt{display:flex;flex-direction:column;line-height:1.25;text-align:right}
+.cert .c-case small{font-size:clamp(10px,1.3vw,13px);color:var(--teal-d);font-weight:600}
+.cert .c-case b{font-family:'Reem Kufi',sans-serif;font-weight:700;font-size:clamp(20px,3.3vw,32px);color:var(--ink)}
 
 /* drawer & modal */
 .scrim{position:fixed;inset:0;background:rgba(4,12,22,.6);z-index:50}
@@ -448,7 +458,7 @@ select.dark{background:var(--bg);border:1.5px solid var(--line);color:var(--text
   #print-root{display:block}
   #print-root .cert{width:100%;max-width:none;height:96vh;aspect-ratio:auto;box-shadow:none;border-radius:0;padding:0;margin:0;overflow:hidden;break-inside:avoid;page-break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #print-root .cert-in{height:100%;padding:4% 6%;gap:0}
-  #print-root .cert .c-name{font-size:40px}#print-root .cert h2{font-size:34px}#print-root .cert .c-sub{font-size:15px}#print-root .cert .c-title{font-size:18px}#print-root .cert .c-skills{font-size:12px}#print-root .cert .c-cases{font-size:12px}#print-root .cert .c-ribbon{font-size:14px}#print-root .cert .c-foot{font-size:12px}#print-root .cert .seal{width:76px;height:76px;font-size:11px}
+  #print-root .cert .c-name{font-size:40px}#print-root .cert h2{font-size:34px}#print-root .cert .c-sub{font-size:15px}#print-root .cert .c-title{font-size:18px}#print-root .cert .c-skills{font-size:12px}#print-root .cert .c-cases{font-size:12px}#print-root .cert .c-ribbon{font-size:14px}#print-root .cert .c-foot{font-size:12px}#print-root .cert .seal{width:150px}#print-root .cert .c-case b{font-size:28px}#print-root .cert .c-case small{font-size:12px}#print-root .cert .c-case .cc-ic{width:40px;height:40px}
 }
 @media print and (orientation:portrait){
   #print-root .cert-in{padding:10% 7%}
@@ -1493,9 +1503,30 @@ function grandData(){
 function certNameForm(){
   return dispName() ? '' : `<div class="paper" style="margin-bottom:18px"><h3>اكتبي اسمك ليظهر في الشهادة</h3><form class="name-in" onsubmit="return false"><label for="nm2" class="sr">الاسم</label><input id="nm2" maxlength="40" placeholder="اسم الطالبة" style="background:#fff;color:var(--ink);border-color:#C6D1DA"><button class="btn btn-ink btn-sm" data-act="save-name2" type="submit">أضيفي الاسم</button></form></div>`;
 }
-function certFoot(date){
+function stampSVG(main, sub){
+  const mag = x => `<g transform="translate(${x} 47)" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="0" cy="0" r="6.5"/><path d="M4.8 4.8l5 5"/></g>`;
+  return `<svg class="stamp" viewBox="0 0 220 110" role="img" aria-label="ختم المحققة: ${main}">
+    <defs><filter id="ink" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.25 1.5" result="m"/>
+      <feComposite in="SourceGraphic" in2="m" operator="in" result="t"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="1" seed="3" result="w"/>
+      <feDisplacementMap in="t" in2="w" scale="2.2"/>
+    </filter></defs>
+    <g filter="url(#ink)">
+      <rect x="4" y="4" width="212" height="102" rx="9" fill="none" stroke="currentColor" stroke-width="4.5"/>
+      <rect x="12" y="12" width="196" height="86" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <text x="110" y="31" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor" font-family="IBM Plex Sans Arabic, sans-serif" direction="rtl">مُحقِّقة العلوم</text>
+      <path d="M30 38H190M30 77H190" stroke="currentColor" stroke-width="1.4"/>
+      ${mag(32)}${mag(188)}
+      <text x="110" y="64" text-anchor="middle" font-size="26" font-weight="700" fill="currentColor" font-family="Reem Kufi, sans-serif" direction="rtl">${main}</text>
+      <text x="110" y="92" text-anchor="middle" font-size="11.5" font-weight="600" fill="currentColor" font-family="IBM Plex Sans Arabic, sans-serif" direction="rtl">${sub}</text>
+    </g>
+  </svg>`;
+}
+function certFoot(date, main, sub){
   const d = fmtDate(date || new Date().toISOString());
-  return `<div class="c-foot"><span>${d.h ? d.h + '<br>' : ''}${d.g}</span><span class="seal">ختم<br>المحققة</span><span>توقيع المعلمة<br>..................</span></div>`;
+  return `<div class="c-foot"><span>${d.h ? d.h + '<br>' : ''}${d.g}</span><span class="seal">${stampSVG(main, sub)}</span><span>توقيع المعلمة<br>..................</span></div>`;
 }
 function certActions(back){
   return `<div class="stage-actions" style="justify-content:center">
@@ -1511,10 +1542,12 @@ function caseCertHTML(c, r){
     <h2>شهادة محققة علمية</h2>
     <p class="c-sub">تشهد منصة «مُحقِّقة العلوم» بأن المحققة</p>
     <div class="c-name">${name ? esc(name) : '.....................'}</div>
-    <p class="c-sub">أتمّت التحقيق في قضية «${c.title}» بنتيجة ${ar(r.score)} من ${ar(r.max)} (${ar(r.pct)}٪)، واستحقّت لقب</p>
+    <p class="c-sub">أتمّت التحقيق في القضية</p>
+    <div class="c-case"><span class="cc-ic" aria-hidden="true">${ICON[c.icon]}</span><span class="cc-txt"><small>ملف رقم ${c.no}</small><b>${c.title}</b></span></div>
+    <p class="c-sub">بنتيجة ${ar(r.score)} من ${ar(r.max)} (${ar(r.pct)}٪)، واستحقّت لقب</p>
     <div class="c-title">${tr.title}</div>
     ${ms.length ? `<p class="c-sub" style="margin-top:1%">المهارات التي أتقنتها:</p><div class="c-skills">${ms.map(m=>`<span>${m}</span>`).join('')}</div>` : `<p class="c-sub" style="margin-top:1.5%">أكملت مراحل التحقيق كلها، وهي خطوة أولى نحو إتقان مهارات الفهم القرائي في العلوم.</p>`}
-    ${certFoot(r.date)}
+    ${certFoot(r.date, 'قضية محلولة', `ملف رقم ${c.no} · تم التحقق ✓`)}
   </div></div></div>`;
 }
 function grandCertHTML(g){
@@ -1529,7 +1562,7 @@ function grandCertHTML(g){
     <div class="c-title">${tr.title}</div>
     <div class="c-cases">${g.list.map(x => `<span><b>${x.c.title}</b>${ar(x.b.pct)}٪</span>`).join('')}</div>
     ${ms.length ? `<div class="c-skills">${ms.map(m=>`<span>${m}</span>`).join('')}</div>` : ''}
-    ${certFoot(g.date)}
+    ${certFoot(g.date, 'مسار مكتمل', 'القضايا الثلاث · تم التحقق ✓')}
   </div></div></div>`;
 }
 function stageCert(c,p){
