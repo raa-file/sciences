@@ -484,7 +484,7 @@ select.dark{background:var(--bg);border:1.5px solid var(--line);color:var(--text
 <main id="app" tabindex="-1"></main>
 <footer>
   <div class="wrap">
-    <span>عند تسجيل الدخول يُحفظ تقدّمك في قاعدة بيانات المبادرة ويمكنك إكماله من أي جهاز.</span>
+    <span>تُحفظ النتائج والتقدم على هذا الجهاز وهذا المتصفح فقط، ولا تُرسل إلى أي خادم.</span>
     <span>مُحقِّقة العلوم · مبادرة لتنمية الفهم القرائي في العلوم</span>
   </div>
 </footer>
@@ -836,9 +836,7 @@ const CASES = [
 const CASE = Object.fromEntries(CASES.map(c => [c.id, c]));
 
 /* ===================== التخزين والمزامنة ===================== */
-const SB_URL = 'https://geguqixafqdixzljwrpl.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdlZ3VxaXhhZnFkaXh6bGp3cnBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM1NTQ1MjYsImV4cCI6MjEwOTEzMDUyNn0.QPDkZFIL-UC8U15iK9t5qCeKb33Tu15cMYGhzwomh8U';
-const KEY = 'mohaqiqat-alolum-v1';
+const KEY = 'mohaqiqat-alolum-local-v1';
 const GUEST = '__guest';
 let DB = loadDB();
 function loadDB(){
@@ -846,19 +844,16 @@ function loadDB(){
   try{ d = JSON.parse(localStorage.getItem(KEY)); }catch(e){}
   if(!d || !d.students || !Array.isArray(d.attempts)) d = {current:'', students:{}, attempts:[]};
   if(!Array.isArray(d.pending)) d.pending = [];
-  if(d.session === undefined) d.session = null;
+  d.session = null;
   return d;
 }
 function localSave(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
   catch(e){ toast('تعذّر الحفظ على هذا الجهاز. تأكدي من أن المتصفح يسمح بالتخزين.'); }
 }
-function save(){
-  if(DB.session){ me().updatedAt = Date.now(); localSave(); schedulePush(); }
-  else localSave();
-}
-function skey(){ return DB.session ? 's:' + DB.session.name + '|' + DB.session.cls : GUEST; }
-function dispName(){ return DB.session ? DB.session.name : (DB.current || ''); }
+function save(){ localSave(); }
+function skey(){ return GUEST; }
+function dispName(){ return DB.current || ''; }
 function me(){
   const k = skey();
   if(!DB.students[k]) DB.students[k] = {progress:{}, best:{}, badges:[]};
@@ -868,85 +863,6 @@ function setName(n){ DB.current = norm(n); localSave(); }
 const norm = v => (v || '').trim().replace(/\s+/g,' ').slice(0, 40);
 const toEn = v => String(v || '').replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).trim();
 
-async function rpc(fn, args){
-  let r;
-  try{
-    r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {method:'POST', headers:{apikey:SB_KEY, Authorization:'Bearer ' + SB_KEY, 'Content-Type':'application/json'}, body:JSON.stringify(args)});
-  }catch(e){ const er = new Error('offline'); er.code = 'offline'; throw er; }
-  const t = await r.text(); let j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){}
-  if(!r.ok){
-    let code = (j && j.message) || ('http_' + r.status);
-    if((j && j.code === 'PGRST202') || /Could not find the function/i.test(code)) code = 'not_setup';
-    else if(r.status === 401 || /api key|JWT/i.test(code)) code = 'bad_key';
-    const er = new Error(code); er.code = code; er.raw = j; throw er;
-  }
-  return j;
-}
-const ERR = {
-  wrong_pin:'الرمز السري غير صحيح لهذا الاسم والفصل. إذا نسيتِه اطلبي من المعلمة إعادة تعيينه.',
-  invalid_pin:'الرمز السري يجب أن يكون من ٤ إلى ٨ أرقام.',
-  invalid_name:'اكتبي الاسم بشكل صحيح.',
-  wrong_teacher_pin:'رمز المعلمة غير صحيح.',
-  not_setup:'قاعدة البيانات غير مُعدّة بعد: شغّلي ملف supabase-setup.sql في SQL Editor ثم حاولي مرة أخرى.',
-  bad_key:'مفتاح الاتصال بقاعدة البيانات غير صحيح. تواصلي مع مصممة الموقع.'
-};
-const errMsg = e => ERR[e.code] || 'تعذّر الاتصال بقاعدة البيانات. تحققي من الإنترنت وحاولي مرة أخرى.';
-const isServerReject = e => e.code && !/^http_/.test(e.code) && !['not_setup','bad_key','offline'].includes(e.code);
-
-let syncState = 'ok', pushTimer = null, pushing = false;
-const SYNC_LABEL = {ok:'☁️ تقدّمك محفوظ ويظهر على أي جهاز', saving:'⏳ جارٍ الحفظ…', offline:'⚠️ لا يوجد اتصال، سيُحفظ تقدّمك تلقائيًا عند عودة الإنترنت', auth:'⚠️ تعذّر التحقق من الرمز، سجّلي الخروج ثم الدخول من جديد'};
-function setSync(st){ syncState = st; const el = $('#sync'); if(el){ el.textContent = SYNC_LABEL[st]; el.dataset.s = st; } }
-function schedulePush(){ clearTimeout(pushTimer); setSync('saving'); pushTimer = setTimeout(pushNow, 700); }
-async function pushNow(){
-  clearTimeout(pushTimer);
-  if(!DB.session) return true;
-  if(pushing){ schedulePush(); return false; }
-  pushing = true;
-  try{
-    const s = me(), c = DB.session;
-    await rpc('mq_save_state', {p_name:c.name, p_class:c.cls, p_pin:c.pin, p_data:{progress:s.progress, best:s.best, badges:s.badges, updatedAt:s.updatedAt || Date.now()}});
-    await flushPending();
-    setSync('ok'); return true;
-  }catch(e){ setSync(e.code === 'wrong_pin' ? 'auth' : 'offline'); return false; }
-  finally{ pushing = false; }
-}
-async function flushPending(){
-  while(DB.pending.length){
-    try{ await rpc('mq_add_attempt', DB.pending[0]); }
-    catch(e){ if(!isServerReject(e) || e.code === 'wrong_pin') throw e; }
-    DB.pending.shift(); localSave();
-  }
-}
-window.addEventListener('online', () => { if(DB.session) pushNow(); });
-setInterval(() => { if(DB.session && (syncState === 'offline' || DB.pending.length)) pushNow(); }, 30000);
-
-async function studentLogin(name, cls, pin){
-  name = norm(name); cls = toEn(norm(cls)).slice(0, 30); pin = toEn(pin);
-  if(!name) throw Object.assign(new Error(), {code:'invalid_name'});
-  if(!/^[0-9]{4,8}$/.test(pin)) throw Object.assign(new Error(), {code:'invalid_pin'});
-  const res = await rpc('mq_student_login', {p_name:name, p_class:cls, p_pin:pin});
-  const remote = (res && res.state) || {};
-  DB.session = {name, cls, pin};
-  const k = skey(), local = DB.students[k], guest = DB.students[GUEST];
-  const has = x => x && (Object.keys(x.best || {}).length || Object.keys(x.progress || {}).length);
-  if(remote.updatedAt && (!local || (local.updatedAt || 0) <= remote.updatedAt)){
-    DB.students[k] = {progress:remote.progress || {}, best:remote.best || {}, badges:remote.badges || [], updatedAt:remote.updatedAt};
-  } else if(!local && !remote.updatedAt && has(guest)){
-    DB.students[k] = guest; delete DB.students[GUEST];
-    DB.attempts.filter(a => a.key === GUEST).forEach(a => { DB.pending.push(attemptArgs(a)); a.key = k; });
-  } else if(!local){
-    DB.students[k] = {progress:{}, best:{}, badges:[]};
-  }
-  me().updatedAt = me().updatedAt || Date.now();
-  DB.current = '';
-  localSave();
-  await pushNow();
-}
-function attemptArgs(a){
-  const c = DB.session;
-  return {p_name:c.name, p_class:c.cls, p_pin:c.pin, p_case:a.caseId, p_score:a.score, p_max:a.max, p_pct:a.pct,
-    p_details:{qPts:a.qPts, evPts:a.evPts, explPts:a.explPts, explOk:a.explOk, evOk:a.evOk, evBad:a.evBad, evTotal:a.evTotal, skills:a.skills}};
-}
 function newProgress(c){
   return {
     stage:0, maxStage:0, qi:0,
@@ -1066,7 +982,6 @@ function route(){
   const [v, id] = h.split('/');
   closeDrawer(true);
   document.querySelectorAll('[data-nav]').forEach(a => a.removeAttribute('aria-current'));
-  if(!DB.session && v !== 'teacher'){ currentCase = null; renderLogin(); window.scrollTo(0,0); return; }
   if(v === 'case' && CASE[id]){ currentCase = id; renderCase(); document.querySelector('[data-nav="home"]').setAttribute('aria-current','page'); }
   else if(v === 'certs'){ currentCase = null; renderCerts(); document.querySelector('[data-nav="certs"]').setAttribute('aria-current','page'); }
   else if(v === 'cert' && (CASE[id] || id === 'all')){ currentCase = null; certId = id; renderCertPage(); document.querySelector('[data-nav="certs"]').setAttribute('aria-current','page'); }
@@ -1085,29 +1000,6 @@ function caseStatus(id){
   if(p && (p.maxStage > 0 || p.qs.some(q => q.att > 0))) return {k:'progress', best, p};
   if(best) return {k:'solved', best, p};
   return {k:'new', best, p};
-}
-function renderLogin(msg){
-  cancelAnimationFrame(lensRAF);
-  $('#app').innerHTML = `<div class="wrap gate">
-    <div class="gate-card">
-      <div class="gate-ic" aria-hidden="true">${ICON.logo}</div>
-      <h1>مُحقِّقة العلوم 🔎</h1>
-      <p class="gate-tag">اقرئي الأدلة، حلّلي المعلومات، واكتشفي الحقيقة!</p>
-      <p class="gate-note">سجّلي دخولك لتبدئي التحقيق. يُحفظ تقدّمك ونقاطك وشهاداتك، وتكملين من أي جهاز بنفس البيانات.</p>
-      <form class="gate-form" onsubmit="return false">
-        <label><span>الاسم الثنائي</span><input id="lg-name" maxlength="40" autocomplete="off" placeholder="مثل: سارة أحمد"></label>
-        <label><span>الفصل</span><input id="lg-cls" maxlength="30" autocomplete="off" placeholder="مثل: ٢/٣"></label>
-        <label><span>الرمز السري</span><input id="lg-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="من ٤ إلى ٨ أرقام"></label>
-        <button class="btn btn-primary" data-act="login" type="submit">ادخلي وابدئي التحقيق</button>
-      </form>
-      <p id="gate-msg" class="gate-msg" role="alert">${msg || ''}</p>
-      <div class="gate-help">
-        <p><b>أول مرة؟</b> اكتبي اسمك وفصلك، واختاري رمزًا سريًا تحفظينه. يُنشأ حسابك تلقائيًا.</p>
-        <p><b>على جهاز آخر؟</b> اكتبي الاسم والفصل والرمز نفسها بالضبط، وسيظهر تقدّمك.</p>
-        <p><b>نسيتِ الرمز؟</b> اطلبي من معلمتك تعيين رمز جديد لك.</p>
-      </div>
-    </div>
-  </div>`;
 }
 function renderHome(){
   const s = me();
@@ -1162,26 +1054,19 @@ function renderHome(){
       <div class="idcard">
         <div>
           <h2 id="idh">بطاقة المحققة</h2>
-          ${DB.session ? `
-          <p class="who">مرحبًا يا محققة <b>${esc(DB.session.name)}</b>${DB.session.cls ? ` · فصل ${esc(DB.session.cls)}` : ''}</p>
-          <p id="sync" class="sync" data-s="${syncState}">${SYNC_LABEL[syncState]}</p>
-          ` : `
-          <p class="note">سجّلي دخولك لتكملي تقدّمك من أي جهاز، ولتصل نتائجك إلى معلمتك. أول مرة؟ اختاري رمزًا سريًا من ٤ أرقام واحفظيه، وسيُنشأ حسابك تلقائيًا.</p>
-          <form class="login" onsubmit="return false">
-            <label><span>الاسم</span><input id="lg-name" maxlength="40" autocomplete="off" placeholder="الاسم الثنائي"></label>
-            <label><span>الفصل</span><input id="lg-cls" maxlength="30" autocomplete="off" placeholder="مثل: ٢/٣"></label>
-            <label><span>الرمز السري</span><input id="lg-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="٤ أرقام"></label>
-            <button class="btn btn-primary btn-sm" data-act="login" type="submit">ادخلي</button>
+          <p class="note">الاسم اختياري، ويظهر في الشهادة. يُحفظ تقدّمك على هذا الجهاز وهذا المتصفح.</p>
+          <form class="name-in" onsubmit="return false">
+            <label for="nm" class="sr">اسم الطالبة</label>
+            <input id="nm" maxlength="40" placeholder="اكتبي اسمك (اختياري)" value="${esc(DB.current)}" autocomplete="off">
+            <button class="btn btn-ghost btn-sm" data-act="save-name" type="submit">${DB.current ? 'تغيير الاسم' : 'احفظي الاسم'}</button>
           </form>
-          <p class="note" style="margin-top:8px">يمكنك أيضًا البدء دون تسجيل، لكن تقدّمك سيبقى على هذا الجهاز فقط.</p>
-          `}
           <div class="counters">
             <div class="counter"><b>${ar(solved)}<small style="font-size:16px;color:var(--muted)"> / ${ar(CASES.length)}</small></b><span>قضايا محلولة</span></div>
             <div class="counter"><b>${ar(points)}</b><span>نقطة مكتسبة</span></div>
             <div class="counter"><b>${ar(s.badges.length)}<small style="font-size:16px;color:var(--muted)"> / ${ar(BADGES.length)}</small></b><span>شارات</span></div>
           </div>
           <div class="row" style="margin-top:14px">
-            ${DB.session ? `<button class="btn btn-ghost btn-sm" data-act="logout">تسجيل الخروج</button>` : `<button class="btn btn-danger btn-sm" data-act="reset-me">امسحي تقدّمي على هذا الجهاز</button>`}
+            <button class="btn btn-danger btn-sm" data-act="reset-me">امسحي تقدّمي على هذا الجهاز</button>
           </div>
         </div>
         <div class="badges" aria-label="الشارات">
@@ -1436,7 +1321,7 @@ function finalize(){
   const nowAll = CASES.every(x => s.best[x.id]);
   if(CASES.every(x => s.best[x.id] && s.best[x.id].pct >= 80)) give('star');
   const att = {id: Date.now().toString(36), key: skey(), name: dispName(), caseId: c.id, score, max, pct, qPts, evPts, explPts, explOk, evOk: okCount, evBad: bad, evTotal: totalOk, skills, date};
-  if(DB.session) DB.pending.push(attemptArgs(att)); else DB.attempts.push(att);
+  DB.attempts.push(att);
   p.result = {score, max, pct, qPts, evPts, explPts, explOk, okCount, bad, totalOk, skills, newBadges:newB, date, attemptId: att.id, fresh:true, grand: nowAll && !wasAll};
   goStage(p, 4);
 }
@@ -1625,47 +1510,21 @@ function closeDrawer(silent){
 }
 
 /* ===================== لوحة المعلمة ===================== */
-let tPin = '', tData = null, tLoading = false, tErr = '';
-try{ tPin = sessionStorage.getItem('mq-tpin') || ''; }catch(e){}
-const label = a => (a.name || 'بدون اسم') + (a.cls ? ` (${a.cls})` : '');
-async function loadTeacher(){
-  tLoading = true; tErr = ''; renderTeacher();
-  try{
-    const rows = await rpc('mq_teacher_results', {p_pin:tPin}) || [];
-    tData = rows.map(r => Object.assign({}, r.details || {}, {id:r.id, name:r.name, cls:r.class, caseId:r.caseId, score:r.score, max:r.max, pct:r.pct, date:r.date, skills:(r.details && r.details.skills) || {}}));
-  }catch(e){
-    tErr = errMsg(e);
-    if(e.code === 'wrong_teacher_pin'){ tPin = ''; try{ sessionStorage.removeItem('mq-tpin'); }catch(_){} tData = null; }
-  }
-  tLoading = false;
-  if(currentCase === null && location.hash.startsWith('#/teacher')) renderTeacher();
-}
+const label = a => (a.name || 'بدون اسم');
 function renderTeacher(){
   cancelAnimationFrame(lensRAF);
-  if(!tPin){
-    $('#app').innerHTML = `<div class="wrap" style="padding-top:30px">
-      <h1 style="font-size:32px">لوحة المعلمة</h1>
-      <p style="color:var(--muted);margin-top:6px">أدخلي رمز المعلمة لعرض نتائج الطالبات من جميع الأجهزة.</p>
-      <form class="tlogin" onsubmit="return false"><label for="tp" class="sr">رمز المعلمة</label><input id="tp" type="password" inputmode="numeric" autocomplete="off" placeholder="رمز المعلمة"><button class="btn btn-primary" data-act="t-login" type="submit">ادخلي</button></form>
-      ${tErr ? `<p style="color:var(--gold2);margin-top:10px">${tErr}</p>` : ''}
-    </div>`;
-    const f = $('#tp'); if(f) f.focus();
-    return;
-  }
-  if(!tData && !tLoading && !tErr){ loadTeacher(); return; }
-  const A = tData || [];
+  const A = DB.attempts.slice().reverse();
   const names = [...new Set(A.map(label))];
   const avg = A.length ? Math.round(A.reduce((x,a)=>x+a.pct,0)/A.length) : 0;
   let body = '';
-  if(tLoading && !tData) body = `<div class="empty"><b>جارٍ تحميل النتائج…</b></div>`;
-  else if(teacherTab === 'results'){
+  if(teacherTab === 'results'){
     body = A.length ? `
       <div class="tstats"><div><b>${ar(A.length)}</b><span>محاولة مكتملة</span></div><div><b>${ar(names.length)}</b><span>طالبة</span></div><div><b>${ar(avg)}٪</b><span>متوسط النسبة</span></div></div>
-      <div class="tscroll"><table class="ttable"><thead><tr><th>الطالبة</th><th>الفصل</th><th>القضية</th><th>الدرجة</th><th>النسبة</th><th>التفسير</th><th>الأدلة الداعمة</th><th>التاريخ</th></tr></thead><tbody>
-      ${A.map(a => `<tr><td>${esc(a.name || 'بدون اسم')}</td><td>${esc(a.cls || '—')}</td><td>${CASE[a.caseId] ? CASE[a.caseId].title : esc(a.caseId)}</td><td>${ar(a.score)} / ${ar(a.max)}</td><td>${ar(a.pct)}٪</td><td>${a.explOk ? '✓ صحيح' : '✗ غير صحيح'}</td><td>${a.evTotal != null ? `${ar(a.evOk)} من ${ar(a.evTotal)}${a.evBad ? ` (+${ar(a.evBad)} غير داعم)` : ''}` : '—'}</td><td>${fmtDate(a.date).g}</td></tr>`).join('')}
+      <div class="tscroll"><table class="ttable"><thead><tr><th>الطالبة</th><th>القضية</th><th>الدرجة</th><th>النسبة</th><th>التفسير</th><th>الأدلة الداعمة</th><th>التاريخ</th></tr></thead><tbody>
+      ${A.map(a => `<tr><td>${esc(a.name || 'بدون اسم')}</td><td>${CASE[a.caseId] ? CASE[a.caseId].title : esc(a.caseId)}</td><td>${ar(a.score)} / ${ar(a.max)}</td><td>${ar(a.pct)}٪</td><td>${a.explOk ? '✓ صحيح' : '✗ غير صحيح'}</td><td>${a.evTotal != null ? `${ar(a.evOk)} من ${ar(a.evTotal)}${a.evBad ? ` (+${ar(a.evBad)} غير داعم)` : ''}` : '—'}</td><td>${fmtDate(a.date).g}</td></tr>`).join('')}
       </tbody></table></div>
       <div class="row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" data-act="export-csv">صدّري النتائج (CSV)</button></div>`
-    : `<div class="empty"><b>لا توجد محاولات مسجّلة بعد.</b>تظهر النتائج هنا عندما تُكمل طالبة مسجّلة الدخول قضية حتى مرحلة إعلان النتيجة، من أي جهاز.</div>`;
+    : `<div class="empty"><b>لا توجد محاولات مسجّلة على هذا الجهاز بعد.</b>تظهر النتائج هنا بعد أن تُكمل طالبة قضية حتى مرحلة إعلان النتيجة على هذا الجهاز نفسه.</div>`;
   }
   else if(teacherTab === 'skills'){
     const list = teacherFilter ? A.filter(a => label(a) === teacherFilter) : A;
@@ -1684,7 +1543,7 @@ function renderTeacher(){
           <h3 style="margin-top:20px">تحتاج إلى تدريب</h3><div class="pill-list">${weak.length ? weak.map(r=>`<span>${SKILLS[r.k].icon} ${SKILLS[r.k].name} (${ar(r.v)}٪)</span>`).join('') : '<span>لا توجد مهارة أقل من ٧٠٪</span>'}</div>
           <p style="color:var(--muted);font-size:13.5px;margin-top:16px">هذه مؤشرات من عدد محدود من الأسئلة لكل مهارة، فاستخدميها نقطة بداية للملاحظة الصفية لا حكمًا نهائيًا.</p>
         </div>
-      </div>` : `<div class="empty"><b>لا توجد بيانات كافية للتحليل بعد.</b>يُبنى التحليل من المحاولات المكتملة للطالبات المسجّلات.</div>`}`;
+      </div>` : `<div class="empty"><b>لا توجد بيانات كافية للتحليل بعد.</b>يُبنى التحليل من المحاولات المكتملة على هذا الجهاز فقط.</div>`}`;
   }
   else if(teacherTab === 'key'){
     body = CASES.map(c => `<details class="key"><summary>ملف ${c.no}: ${c.title} <span style="font-size:14px;color:var(--ink2);font-family:'IBM Plex Sans Arabic'">(${c.topic})</span></summary>
@@ -1699,24 +1558,13 @@ function renderTeacher(){
     </details>`).join('');
   }
   else if(teacherTab === 'data'){
-    body = `<div class="two">
-      <div class="paper-dark"><h3>إعادة تعيين الرمز السري لطالبة</h3><p style="color:var(--muted);font-size:14.5px">إذا نسيت طالبة رمزها، اكتبي اسمها وفصلها كما سجّلتهما، ثم رمزًا جديدًا.</p>
-        <form class="login" style="grid-template-columns:1fr 1fr" onsubmit="return false">
-          <label style="grid-column:1 / -1"><span>اسم الطالبة</span><input id="rp-name" maxlength="40"></label>
-          <label><span>الفصل</span><input id="rp-cls" maxlength="30"></label>
-          <label><span>الرمز الجديد</span><input id="rp-pin" inputmode="numeric" maxlength="8"></label>
-          <button class="btn btn-ghost btn-sm" data-act="t-resetpin" type="submit" style="grid-column:1 / -1">عيّني الرمز الجديد</button>
-        </form></div>
-      <div class="paper-dark"><h3>مسح جميع البيانات</h3><p style="color:var(--muted);font-size:14.5px">يحذف من قاعدة البيانات جميع حسابات الطالبات وتقدّمهن ونتائجهن، مثل بداية فصل دراسي جديد. لا يمكن التراجع.</p><button class="btn btn-danger" data-act="reset-all">امسحي جميع البيانات</button>
-        <h3 style="margin-top:22px">الخروج من لوحة المعلمة</h3><p style="color:var(--muted);font-size:14.5px">استخدميه عند العمل على جهاز مشترك.</p><button class="btn btn-ghost btn-sm" data-act="t-logout">تسجيل خروج المعلمة</button></div>
-    </div>`;
+    body = `<div class="paper-dark"><h3>إعادة تعيين البيانات</h3><p style="color:var(--muted)">يمسح هذا الزر كل ما حُفظ على هذا الجهاز: أسماء الطالبات، والتقدم، والشارات، والشهادات، وسجل المحاولات. لا يمكن التراجع عن المسح.</p><button class="btn btn-danger" data-act="reset-all">امسحي جميع البيانات على هذا الجهاز</button></div>`;
   }
   const tabs = [['results','نتائج المحاولات'],['skills','تحليل المهارات'],['key','القضايا ومفتاح الإجابة'],['data','إدارة البيانات']];
   $('#app').innerHTML = `<div class="wrap" style="padding-top:30px">
     <h1 style="font-size:32px">لوحة المعلمة</h1>
     <p style="color:var(--muted);margin-top:6px">نتائج المحاولات المكتملة، وتحليل مهارات الفهم القرائي، ومفتاح الإجابة.</p>
-    <div class="notice"><b>ملاحظة:</b> تُعرض هنا نتائج الطالبات اللواتي سجّلن الدخول، من أي جهاز. المحاولات التي تتم دون تسجيل دخول تبقى على جهاز الطالبة ولا تظهر هنا.</div>
-    <div class="row" style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-act="t-refresh" ${tLoading?'disabled':''}>${tLoading ? 'جارٍ التحديث…' : 'حدّثي النتائج'}</button>${tErr ? `<span style="color:var(--gold2);font-size:14.5px">${tErr}</span>` : ''}</div>
+    <div class="notice"><b>تنبيه مهم:</b> تُعرض هنا فقط المحاولات المسجّلة على هذا الجهاز وهذا المتصفح. لا تصل نتائج الطالبات من أجهزتهن إلى المعلمة عن بُعد في هذه النسخة؛ لعرض نتائج طالبة، تُستخدم اللوحة على الجهاز الذي حلّت عليه القضية، أو تُصدَّر النتائج بملف CSV منه.</div>
     <div class="tabs" role="tablist">${tabs.map(([k,n]) => `<button role="tab" aria-selected="${teacherTab===k}" data-act="t-tab" data-t="${k}">${n}</button>`).join('')}</div>
     <div role="tabpanel">${body}</div>
   </div>`;
@@ -1728,8 +1576,8 @@ function keyAnswer(q){
   if(q.type === 'match') return q.items.map(it => `${it.t} ← ${q.options[it.a]}`).join('<br>');
 }
 function exportCSV(){
-  const head = ['الطالبة','الفصل','القضية','الدرجة','الدرجة العظمى','النسبة','نقاط الأسئلة','نقاط الأدلة','نقاط التفسير','التفسير صحيح','التاريخ', ...Object.values(SKILLS).map(s=>s.name+' ٪')];
-  const rows = (tData || []).map(a => [a.name||'بدون اسم', a.cls||'', CASE[a.caseId]?CASE[a.caseId].title:a.caseId, a.score, a.max, a.pct, a.qPts, a.evPts, a.explPts, a.explOk?'نعم':'لا', new Date(a.date).toLocaleString('en-GB'),
+  const head = ['الطالبة','القضية','الدرجة','الدرجة العظمى','النسبة','نقاط الأسئلة','نقاط الأدلة','نقاط التفسير','التفسير صحيح','التاريخ', ...Object.values(SKILLS).map(s=>s.name+' ٪')];
+  const rows = DB.attempts.map(a => [a.name||'بدون اسم', CASE[a.caseId]?CASE[a.caseId].title:a.caseId, a.score, a.max, a.pct, a.qPts, a.evPts, a.explPts, a.explOk?'نعم':'لا', new Date(a.date).toLocaleString('en-GB'),
     ...Object.keys(SKILLS).map(k => a.skills && a.skills[k] && a.skills[k][1] ? Math.round(a.skills[k][0]/a.skills[k][1]*100) : '')]);
   const csv = '\ufeff' + [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
@@ -1757,23 +1605,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'restart-confirm': { const id = el.dataset.id; me().progress[id] = newProgress(CASE[id]); save(); closeModal(); if(location.hash === '#/case/'+id) route(); else location.hash = '#/case/' + id; break; }
-    case 'login': {
-      const btn = el; btn.disabled = true; btn.textContent = 'جارٍ الدخول…';
-      studentLogin($('#lg-name').value, $('#lg-cls').value, $('#lg-pin').value)
-        .then(() => { toast(`مرحبًا يا محققة ${DB.session.name}!`); route(); })
-        .catch(err => { DB.session = null; const m = $('#gate-msg'); if(m) m.textContent = errMsg(err); else toast(errMsg(err)); btn.disabled = false; btn.textContent = 'ادخلي وابدئي التحقيق'; });
-      break;
-    }
-    case 'logout': {
-      el.disabled = true;
-      pushNow().then(ok => {
-        if(!ok && syncState === 'auth'){ delete DB.students[skey()]; DB.session = null; localSave(); toast('تغيّر رمزك السري، سجّلي الدخول بالرمز الجديد.'); return route(); }
-        if(!ok){ el.disabled = false; return modal(`<h3>لم تُحفظ آخر التغييرات</h3><p>لا يوجد اتصال بالإنترنت الآن، لذلك لم يُرفع آخر تقدّم لك. إذا خرجتِ سيبقى محفوظًا على هذا الجهاز ويُرفع عند دخولك مرة أخرى منه.</p><div class="row" style="justify-content:flex-end"><button class="btn btn-line-ink" data-act="close-modal">البقاء</button><button class="btn btn-ink" data-act="logout-force">اخرجي على أي حال</button></div>`); }
-        delete DB.students[skey()]; DB.session = null; localSave(); toast('سُجّل خروجك. تقدّمك محفوظ ويمكنك الدخول من أي جهاز.'); location.hash = '#/'; route();
-      });
-      break;
-    }
-    case 'logout-force': DB.session = null; localSave(); closeModal(); location.hash = '#/'; route(); break;
+    case 'save-name': { setName($('#nm').value); toast(DB.current ? `مرحبًا يا محققة ${DB.current}!` : 'سيظهر اسمك فارغًا في الشهادة.'); renderHome(); break; }
     case 'save-name2': {
       const v = $('#nm2').value.trim(); if(!v) return toast('اكتبي الاسم أولًا.');
       setName(v);
@@ -1783,28 +1615,8 @@ document.addEventListener('click', e => {
     case 'go-certs': location.hash = '#/certs'; break;
     case 'reset-me': modal(`<h3>مسح تقدّمك</h3><p>سيُمسح تقدّمك وشاراتك ونقاطك المحفوظة على هذا الجهاز دون تسجيل دخول.</p><div class="row" style="justify-content:flex-end"><button class="btn btn-line-ink" data-act="close-modal">إلغاء</button><button class="btn btn-ink" data-act="reset-me-confirm">امسحي تقدّمي</button></div>`); break;
     case 'reset-me-confirm': delete DB.students[GUEST]; DB.attempts = DB.attempts.filter(a => a.key !== GUEST); DB.current = ''; localSave(); closeModal(); toast('مُسح تقدّمك.'); renderHome(); break;
-    case 'reset-all': modal(`<h3>مسح جميع البيانات</h3><p>سيُحذف من قاعدة البيانات كل شيء: حسابات الطالبات وتقدّمهن ونتائجهن، من جميع الأجهزة. لا يمكن التراجع.</p><div class="row" style="justify-content:flex-end"><button class="btn btn-line-ink" data-act="close-modal">إلغاء</button><button class="btn btn-ink" style="background:var(--bad)" data-act="reset-all-confirm">امسحي كل البيانات</button></div>`); break;
-    case 'reset-all-confirm':
-      closeModal();
-      rpc('mq_teacher_reset', {p_pin:tPin}).then(() => { tData = []; toast('مُسحت جميع البيانات.'); renderTeacher(); }).catch(err => toast(errMsg(err)));
-      break;
-    case 't-login': {
-      const v = toEn($('#tp').value); if(!v) return toast('اكتبي رمز المعلمة.');
-      tPin = v; tData = null; tErr = '';
-      try{ sessionStorage.setItem('mq-tpin', v); }catch(_){}
-      loadTeacher(); break;
-    }
-    case 't-refresh': loadTeacher(); break;
-    case 't-logout': tPin = ''; tData = null; tErr = ''; try{ sessionStorage.removeItem('mq-tpin'); }catch(_){} renderTeacher(); break;
-    case 't-resetpin': {
-      const n = norm($('#rp-name').value), c = toEn(norm($('#rp-cls').value)), np = toEn($('#rp-pin').value);
-      if(!n) return toast('اكتبي اسم الطالبة.');
-      if(!/^[0-9]{4,8}$/.test(np)) return toast(ERR.invalid_pin);
-      rpc('mq_teacher_reset_pin', {p_name:n, p_class:c, p_teacher_pin:tPin, p_new_pin:np})
-        .then(() => { toast(`عُيّن الرمز الجديد للطالبة ${n}.`); $('#rp-pin').value = ''; })
-        .catch(err => toast(errMsg(err)));
-      break;
-    }
+    case 'reset-all': modal(`<h3>مسح جميع البيانات</h3><p>سيُمسح كل شيء على هذا الجهاز: التقدم والشارات والشهادات وسجل المحاولات لجميع الطالبات. لا يمكن التراجع.</p><div class="row" style="justify-content:flex-end"><button class="btn btn-line-ink" data-act="close-modal">إلغاء</button><button class="btn btn-ink" style="background:var(--bad)" data-act="reset-all-confirm">امسحي كل البيانات</button></div>`); break;
+    case 'reset-all-confirm': try{ localStorage.removeItem(KEY); }catch(_){} DB = loadDB(); closeModal(); toast('مُسحت جميع البيانات من هذا الجهاز.'); renderTeacher(); break;
     case 'close-modal': closeModal(); break;
     case 'term': {
       const t = el.dataset.term, def = (c && c.glossary[t]) || CASES.map(x=>x.glossary[t]).find(Boolean) || '';
