@@ -549,7 +549,7 @@ const BADGES = [
   {id:'star',    name:'المحققة المتميزة', icon:'🏅', d:'حلّ القضايا الثلاث بنسبة ٨٠٪ فأكثر في كل منها.'}
 ];
 const KIND = {obs:'ملاحظة', info:'معلومة علمية', data:'بيانات وقياسات', quote:'أقوال وآراء', place:'معلومة من المكان', design:'وصف التجربة'};
-const STAGES = ['استلام القضية','ملف الأدلة','تحليل النص','غرفة التحليل','إعلان النتيجة','الشهادة'];
+const STAGES = ['استلام القضية','ملف الأدلة','تحليل النص','غرفة التحليل','إعلان النتيجة','شهادة المحققة'];
 
 const ICON = {
   fish:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 36c9-12 27-13 38 0-11 13-29 12-38 0z"/><path d="M46 36l11-8v16z"/><circle cx="18" cy="33" r="1.6" fill="currentColor"/><circle cx="30" cy="16" r="3"/><circle cx="38" cy="9" r="2"/><path d="M6 52c6-3 10 3 16 0s10 3 16 0 10 3 16 0"/></svg>',
@@ -1110,7 +1110,7 @@ function route(){
   if(v === 'tcert'){ currentCase = null; renderTeacherCert(id, h.split('/')[2]); document.querySelector('[data-nav="teacher"]').setAttribute('aria-current','page'); window.scrollTo(0,0); return; }
   if(!DB.session && v !== 'teacher'){ currentCase = null; renderLogin(); window.scrollTo(0,0); return; }
   if(v === 'case' && CASE[id]){ currentCase = id; renderCase(); document.querySelector('[data-nav="home"]').setAttribute('aria-current','page'); }
-  else if(v === 'certs'){ currentCase = null; renderCerts(); refreshCerts().then(ok => { if(ok && location.hash === '#/certs') renderCerts(); }); document.querySelector('[data-nav="certs"]').setAttribute('aria-current','page'); }
+  else if(v === 'certs'){ currentCase = null; renderCerts(); document.querySelector('[data-nav="certs"]').setAttribute('aria-current','page'); }
   else if(v === 'cert' && (CASE[id] || id === 'all')){ currentCase = null; certId = id; renderCertPage(); document.querySelector('[data-nav="certs"]').setAttribute('aria-current','page'); }
   else if(v === 'teacher'){ currentCase = null; renderTeacher(); document.querySelector('[data-nav="teacher"]').setAttribute('aria-current','page'); }
   else { currentCase = null; renderHome(); document.querySelector('[data-nav="home"]').setAttribute('aria-current','page'); }
@@ -1500,7 +1500,7 @@ function stageResult(c,p){
       <span>اختيار الأدلة <b>${ar(r.evPts)}</b> من ${ar(r.totalOk*5)}</span>
       <span>التفسير <b>${ar(r.explPts)}</b> من ٢٠</span>
     </div>
-    ${r.grand ? `<div class="grand-note"><span aria-hidden="true">🏆</span><div><b>أنهيتِ القضايا الثلاث!</b><p>وصلت نتائجك إلى المعلمة، وبعد اعتمادها تُصدر لك شهادة كل قضية والشهادة الكبرى «المحققة العلمية».</p></div><a class="btn btn-gold btn-sm" href="#/certs">شهاداتي</a></div>` : ''}
+    ${r.grand ? `<div class="grand-note"><span aria-hidden="true">🏆</span><div><b>أنهيتِ القضايا الثلاث!</b><p>استحققتِ الشهادة الكبرى «المحققة العلمية» التي تجمع نتائج تحقيقاتك كلها.</p></div><a class="btn btn-gold btn-sm" href="#/cert/all">اعرضي الشهادة الكبرى</a></div>` : ''}
     ${r.newBadges.length ? `<div style="margin-top:12px"><b>شارات جديدة:</b><div class="newbadges">${r.newBadges.map(id => { const b = BADGES.find(x=>x.id===id); return `<span>${b.icon} ${b.name}</span>`; }).join('')}</div></div>` : ''}
   </div>
   <div class="paper">
@@ -1534,6 +1534,14 @@ function grandFromBest(best){
   CASES.forEach(c => Object.entries(best[c.id].skills || {}).forEach(([k,[e,m]]) => { if(!agg[k]) agg[k] = [0,0]; agg[k][0] += e; agg[k][1] += m; }));
   return {score, max, pct: Math.round(score/max*100), skills: agg, cases: CASES.map(c => ({id:c.id, pct:best[c.id].pct}))};
 }
+function certsFromBest(best){
+  const out = {};
+  CASES.forEach(c => { const b = best && best[c.id]; if(b) out[c.id] = {data:{score:b.score, max:b.max, pct:b.pct, skills:b.skills || {}}, issuedAt:b.date}; });
+  const g = grandFromBest(best);
+  if(g){ const ds = CASES.map(c => best[c.id].date).filter(Boolean).sort(); out.all = {data:g, issuedAt:ds[ds.length-1]}; }
+  return out;
+}
+const myCerts = () => certsFromBest(me().best);
 function stampSVG(main, sub){
   const mag = x => `<g transform="translate(${x} 47)" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="0" cy="0" r="6.5"/><path d="M4.8 4.8l5 5"/></g>`;
   return `<svg class="stamp" viewBox="0 0 220 110" role="img" aria-label="ختم المحققة: ${main}">
@@ -1557,7 +1565,7 @@ function stampSVG(main, sub){
 }
 function certFoot(date, main, sub){
   const d = fmtDate(date || new Date().toISOString());
-  return `<div class="c-foot"><span>تاريخ الإصدار<br>${d.h ? d.h + '<br>' : ''}${d.g}</span><span class="seal">${stampSVG(main, sub)}</span><span>معلمة العلوم<br><b class="c-sign">${TEACHER}</b></span></div>`;
+  return `<div class="c-foot"><span>تاريخ الشهادة<br>${d.h ? d.h + '<br>' : ''}${d.g}</span><span class="seal">${stampSVG(main, sub)}</span><span>معلمة العلوم<br><b class="c-sign">${TEACHER}</b></span></div>`;
 }
 function certActions(back, who){
   return `<div class="stage-actions" style="justify-content:center">
@@ -1579,7 +1587,7 @@ function caseCertHTML(c, r, name, cls, issuedAt){
     <p class="c-sub">بنتيجة ${ar(r.score)} من ${ar(r.max)} (${ar(r.pct)}٪)، واستحقّت لقب</p>
     <div class="c-title">${tr.title}</div>
     ${ms.length ? `<p class="c-sub" style="margin-top:1%">المهارات التي أتقنتها:</p><div class="c-skills">${ms.map(m=>`<span>${m}</span>`).join('')}</div>` : `<p class="c-sub" style="margin-top:1.5%">أكملت مراحل التحقيق كلها، وهي خطوة أولى نحو إتقان مهارات الفهم القرائي في العلوم.</p>`}
-    ${certFoot(issuedAt, 'قضية محلولة', `ملف رقم ${c.no} · معتمدة ✓`)}
+    ${certFoot(issuedAt, 'قضية محلولة', `ملف رقم ${c.no} · تم التحقق ✓`)}
   </div></div></div>`;
 }
 function grandCertHTML(g, name, cls, issuedAt){
@@ -1594,40 +1602,32 @@ function grandCertHTML(g, name, cls, issuedAt){
     <div class="c-title">${tr.title}</div>
     <div class="c-cases">${(g.cases || []).filter(x => CASE[x.id]).map(x => `<span><b>${CASE[x.id].title}</b>${ar(x.pct)}٪</span>`).join('')}</div>
     ${ms.length ? `<div class="c-skills">${ms.map(m=>`<span>${m}</span>`).join('')}</div>` : ''}
-    ${certFoot(issuedAt, 'مسار مكتمل', 'القضايا الثلاث · معتمدة ✓')}
+    ${certFoot(issuedAt, 'مسار مكتمل', 'القضايا الثلاث · تم التحقق ✓')}
   </div></div></div>`;
 }
 function certHTMLFor(key, cert, name, cls){
   return key === 'all' ? grandCertHTML(cert.data, name, cls, cert.issuedAt) : caseCertHTML(CASE[key], cert.data, name, cls, cert.issuedAt);
 }
-function pendingBox(text){
-  return `<div class="paper pending"><div class="pend-ic" aria-hidden="true">⏳</div><h2>شهادتك بانتظار اعتماد المعلمة</h2>
-    <p class="muted measure" style="margin:0 auto 14px">${text}</p>
-    <div class="row" style="justify-content:center"><button class="btn btn-ink" data-act="check-certs">تحقّقي من شهادتي الآن</button><a class="btn btn-line-ink" href="#/certs">شهاداتي</a></div></div>`;
-}
 function stageCert(c,p){
-  if(!p.result) return `<div class="paper"><p>أكملي التحقيق أولًا.</p></div>`;
-  const cert = me().certs[c.id];
-  if(cert) return caseCertHTML(c, cert.data, DB.session.name, DB.session.cls, cert.issuedAt) + certActions(`<a class="btn btn-ghost" href="#/certs">شهاداتي</a><button class="btn btn-ghost" data-act="home">العودة إلى ملفات القضايا</button>`);
-  return pendingBox(`وصلت نتيجتك في قضية «${c.title}» إلى المعلمة ${TEACHER}. بعد أن تراجعها وتعتمدها ستظهر شهادتك هنا وفي صفحة «شهاداتي».`);
+  const cert = myCerts()[c.id];
+  if(!p.result || !cert) return `<div class="paper"><p>أكملي التحقيق أولًا لتحصلي على الشهادة.</p></div>`;
+  return caseCertHTML(c, cert.data, DB.session.name, DB.session.cls, cert.issuedAt) + certActions(`<a class="btn btn-ghost" href="#/certs">شهاداتي</a><button class="btn btn-ghost" data-act="home">العودة إلى ملفات القضايا</button>`);
 }
 
 /* صفحة الشهادات */
 let certId = null;
 function certsSection(s){
-  const certs = s.certs || {}, solved = CASES.filter(c => s.best[c.id]).length;
-  const card = (key, title, ic, sub, extra) => {
+  const certs = certsFromBest(s.best), solved = CASES.filter(c => s.best[c.id]).length;
+  const card = (key, title, ic, lockText, extra, bar) => {
     const cert = certs[key];
     if(cert) return `<a class="certcard on ${extra}" href="#/cert/${key}"><span class="cc-ic" aria-hidden="true">${ic}</span><b>${title}</b><small>${tier(cert.data.pct).title} · ${ar(cert.data.pct)}٪</small><span class="cc-go">اعرضي الشهادة</span></a>`;
-    if(sub.done) return `<div class="certcard wait ${extra}"><span class="cc-ic" aria-hidden="true">⏳</span><b>${title}</b><small>بانتظار اعتماد المعلمة</small></div>`;
-    return `<div class="certcard ${extra}"><span class="cc-ic" aria-hidden="true">🔒</span><b>${title}</b><small>${sub.text}</small>${sub.bar || ''}</div>`;
+    return `<div class="certcard ${extra}"><span class="cc-ic" aria-hidden="true">🔒</span><b>${title}</b><small>${lockText}</small>${bar || ''}</div>`;
   };
-  const cards = CASES.map(c => card(c.id, c.title, '📜', {done: !!s.best[c.id], text:'تُفتح بعد حلّ القضية واعتماد المعلمة'}, '')).join('');
-  const grand = card('all', 'الشهادة الكبرى', '🏆', {done: solved === CASES.length, text:`حُلّت ${ar(solved)} من ${ar(CASES.length)} قضايا. تُمنح بعد حلّ القضايا الثلاث واعتماد المعلمة.`, bar:`<span class="cc-bar"><i style="width:${solved/CASES.length*100}%"></i></span>`}, 'grandcard');
+  const cards = CASES.map(c => card(c.id, c.title, '📜', 'تُفتح عند حلّ القضية', '')).join('');
+  const grand = card('all', 'الشهادة الكبرى', '🏆', `حُلّت ${ar(solved)} من ${ar(CASES.length)} قضايا. تُفتح عند حلّ القضايا الثلاث.`, 'grandcard', `<span class="cc-bar"><i style="width:${solved/CASES.length*100}%"></i></span>`);
   return `<section class="sec" aria-labelledby="crh">
-    <div class="sec-h"><h2 id="crh">شهاداتي</h2><p>تُصدر المعلمة ${TEACHER} شهادة لكل قضية تحلّينها، وشهادة كبرى عند حلّ القضايا الثلاث.</p></div>
+    <div class="sec-h"><h2 id="crh">شهاداتي</h2><p>شهادة لكل قضية تحلّينها، وشهادة كبرى عند حلّ القضايا الثلاث.</p></div>
     <div class="certgrid">${cards}${grand}</div>
-    <div class="row" style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-act="check-certs">تحديث الشهادات</button></div>
   </section>`;
 }
 function renderCerts(){
@@ -1636,7 +1636,7 @@ function renderCerts(){
 }
 function renderCertPage(){
   cancelAnimationFrame(lensRAF);
-  const back = `<a class="btn btn-ghost" href="#/certs">كل شهاداتي</a>`, cert = me().certs[certId];
+  const back = `<a class="btn btn-ghost" href="#/certs">كل شهاداتي</a>`, cert = myCerts()[certId];
   const html = cert ? certHTMLFor(certId, cert, DB.session.name, DB.session.cls) + certActions(back)
     : `<div class="empty"><b>هذه الشهادة لم تصدر بعد.</b>تظهر هنا بعد أن تعتمدها المعلمة.<div class="row" style="justify-content:center;margin-top:14px">${back}</div></div>`;
   $('#app').innerHTML = `<div class="wrap" style="padding:26px 20px 10px"><button class="back" data-act="go-certs">‹ العودة إلى شهاداتي</button><div style="margin-top:16px">${html}</div></div>`;
@@ -1670,7 +1670,7 @@ async function loadTeacher(){
     const students = (d.students || []).map(st => {
       const best = st.best || {};
       CASES.forEach(c => { if(!best[c.id]){ const at = attempts.filter(a => a.studentId === st.id && a.caseId === c.id).sort((x,y)=>y.score-x.score)[0]; if(at) best[c.id] = {score:at.score, max:at.max, pct:at.pct, skills:at.skills, date:at.date}; } });
-      return {id:st.id, name:st.name, cls:st.class, best, certs: certs[st.id] || {}};
+      return {id:st.id, name:st.name, cls:st.class, best, certs: certsFromBest(best)};
     });
     tData = {attempts, students};
   }catch(e){
@@ -1681,21 +1681,10 @@ async function loadTeacher(){
   if(location.hash.startsWith('#/teacher')) renderTeacher();
   else if(location.hash.startsWith('#/tcert')) route();
 }
-function eligible(st){
-  const out = CASES.filter(c => st.best[c.id] && !st.certs[c.id]).map(c => c.id);
-  if(grandFromBest(st.best) && !st.certs.all) out.push('all');
-  return out;
-}
-function certPayload(st, key){
-  if(key === 'all'){ const g = grandFromBest(st.best); return g; }
-  const b = st.best[key]; return {score:b.score, max:b.max, pct:b.pct, skills:b.skills || {}, date:b.date};
-}
 function stCell(st, key){
-  const solved = key === 'all' ? !!grandFromBest(st.best) : !!st.best[key];
-  const cert = st.certs[key], pct = key === 'all' ? (solved ? grandFromBest(st.best).pct : null) : (solved ? st.best[key].pct : null);
-  if(!solved) return `<td class="cc-none">—</td>`;
-  if(cert) return `<td><div class="cstat ok"><b>${ar(pct)}٪</b><span>✓ صادرة</span><div class="cbtns"><a class="mini" href="#/tcert/${st.id}/${key}">عرض</a><button class="mini danger" data-act="t-revoke" data-sid="${st.id}" data-key="${key}">إلغاء</button></div></div></td>`;
-  return `<td><div class="cstat"><b>${ar(pct)}٪</b><button class="mini go" data-act="t-issue" data-sid="${st.id}" data-key="${key}" ${tBusy?'disabled':''}>إصدار الشهادة</button></div></td>`;
+  const cert = st.certs[key];
+  if(!cert) return `<td class="cc-none">—</td>`;
+  return `<td><div class="cstat ok"><b>${ar(cert.data.pct)}٪</b><div class="cbtns"><a class="mini" href="#/tcert/${st.id}/${key}">عرض وطباعة</a></div></div></td>`;
 }
 function renderTeacher(){
   cancelAnimationFrame(lensRAF);
@@ -1717,14 +1706,13 @@ function renderTeacher(){
   const solvedAny = S.filter(st => CASES.some(c => st.best[c.id]));
   const allPcts = []; S.forEach(st => CASES.forEach(c => { if(st.best[c.id]) allPcts.push(st.best[c.id].pct); }));
   const avg = allPcts.length ? Math.round(allPcts.reduce((x,y)=>x+y,0)/allPcts.length) : 0;
-  const waiting = S.reduce((n,st) => n + eligible(st).length, 0);
   const issued = S.reduce((n,st) => n + Object.keys(st.certs).length, 0);
   const classPick = `<div class="row tfilter"><label for="tcls">الفصل:</label><select id="tcls" class="dark" data-act="t-class"><option value="">جميع الفصول</option>${CLASSES.map(c=>`<option ${c===tClass?'selected':''}>${c}</option>`).join('')}</select></div>`;
   let body = '';
   if(tLoading && !tData) body = `<div class="empty"><b>جارٍ تحميل النتائج…</b></div>`;
   else if(teacherTab === 'results'){
     body = classPick + `
-      <div class="tstats four"><div><b>${ar(S.length)}</b><span>طالبة مسجّلة</span></div><div><b>${ar(solvedAny.length)}</b><span>حلّت قضية على الأقل</span></div><div><b>${ar(avg)}٪</b><span>متوسط أفضل النتائج</span></div><div><b>${ar(waiting)}</b><span>شهادة بانتظار الإصدار</span></div></div>
+      <div class="tstats four"><div><b>${ar(S.length)}</b><span>طالبة مسجّلة</span></div><div><b>${ar(solvedAny.length)}</b><span>حلّت قضية على الأقل</span></div><div><b>${ar(avg)}٪</b><span>متوسط أفضل النتائج</span></div><div><b>${ar(issued)}</b><span>شهادة صادرة</span></div></div>
       ${tClass ? '' : `<h3 style="margin:22px 0 10px">ملخص الفصول</h3><div class="tscroll"><table class="ttable"><thead><tr><th>الفصل</th><th>الطالبات</th>${CASES.map(c=>`<th>${c.title}<br><small>متوسط النسبة</small></th>`).join('')}<th>الشهادات الصادرة</th></tr></thead><tbody>
         ${CLASSES.map(cl => { const ss = D.students.filter(st => st.cls === cl); return `<tr><td><b>${cl}</b></td><td>${ar(ss.length)}</td>${CASES.map(c => { const p = ss.filter(st => st.best[c.id]).map(st => st.best[c.id].pct); return p.length ? `<td><b>${ar(Math.round(p.reduce((x,y)=>x+y,0)/p.length))}٪</b><br><small class="muted-s">حلّتها ${ar(p.length)}</small></td>` : '<td class="cc-none">—</td>'; }).join('')}<td>${ar(ss.reduce((n,st)=>n+Object.keys(st.certs).length,0))}</td></tr>`; }).join('')}
       </tbody></table></div>`}
@@ -1737,8 +1725,7 @@ function renderTeacher(){
   }
   else if(teacherTab === 'certs'){
     body = classPick + `
-      <div class="notice" style="margin-bottom:14px"><b>طريقة الإصدار:</b> تظهر لكل طالبة أفضل نسبة حصلت عليها في كل قضية. اضغطي «إصدار الشهادة» لاعتمادها، فتظهر للطالبة في صفحة «شهاداتي» وتستطيع طباعتها. الشهادة الكبرى متاحة لمن حلّت القضايا الثلاث. صدر حتى الآن ${ar(issued)} ${issued===1?'شهادة':'شهادات'}.</div>
-      ${waiting ? `<div class="row" style="margin-bottom:12px"><button class="btn btn-gold btn-sm" data-act="t-issue-all" ${tBusy?'disabled':''}>إصدار كل الشهادات المستحقة${tClass ? ' في هذا الفصل' : ''} (${ar(waiting)})</button></div>` : ''}
+      <div class="notice" style="margin-bottom:14px"><b>الشهادات:</b> تصدر شهادة الطالبة تلقائيًا باسمها بعد حلّ كل قضية، والشهادة الكبرى بعد حلّ القضايا الثلاث، وفي أسفل كل شهادة اسم المعلمة. يمكنك عرض أي شهادة وطباعتها من هنا. عدد الشهادات الصادرة${tClass ? ' في هذا الفصل' : ''}: ${ar(issued)}.</div>
       ${S.length ? `<div class="tscroll"><table class="ttable certtable"><thead><tr><th>الطالبة</th><th>الفصل</th>${CASES.map(c=>`<th>${c.title}</th>`).join('')}<th>الشهادة الكبرى</th></tr></thead><tbody>
         ${S.map(st => `<tr><td><b>${esc(st.name)}</b></td><td>${esc(st.cls)}</td>${CASES.map(c => stCell(st, c.id)).join('')}${stCell(st, 'all')}</tr>`).join('')}
       </tbody></table></div>` : `<div class="empty"><b>لا توجد طالبات مسجّلات بعد${tClass ? ' في هذا الفصل' : ''}.</b>تظهر الطالبة هنا بعد أول تسجيل دخول لها.</div>`}`;
@@ -1788,12 +1775,12 @@ function renderTeacher(){
         <h3 style="margin-top:22px">الخروج من لوحة المعلمة</h3><p style="color:var(--muted);font-size:14.5px">استخدميه عند العمل على جهاز مشترك.</p><button class="btn btn-ghost btn-sm" data-act="t-logout">تسجيل خروج المعلمة</button></div>
     </div>`;
   }
-  const tabs = [['results','النتائج'],['certs','إصدار الشهادات'],['skills','تحليل المهارات'],['key','مفتاح الإجابة'],['data','إدارة البيانات']];
+  const tabs = [['results','النتائج'],['certs','الشهادات'],['skills','تحليل المهارات'],['key','مفتاح الإجابة'],['data','إدارة البيانات']];
   $('#app').innerHTML = `<div class="wrap" style="padding-top:30px">
     <h1 style="font-size:32px">لوحة المعلمة</h1>
     <p style="color:var(--muted);margin-top:6px">${SCHOOL} · المعلمة ${TEACHER}</p>
     <div class="row" style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-act="t-refresh" ${tLoading?'disabled':''}>${tLoading ? 'جارٍ التحديث…' : 'حدّثي النتائج'}</button>${tErr ? `<span style="color:var(--gold2);font-size:14.5px">${tErr}</span>` : ''}</div>
-    <div class="tabs" role="tablist">${tabs.map(([k,n]) => `<button role="tab" aria-selected="${teacherTab===k}" data-act="t-tab" data-t="${k}">${n}${k==='certs' && tData && tData.students.reduce((n,st)=>n+eligible(st).length,0) ? ` <span class="tbadge">${ar(tData.students.reduce((n,st)=>n+eligible(st).length,0))}</span>` : ''}</button>`).join('')}</div>
+    <div class="tabs" role="tablist">${tabs.map(([k,n]) => `<button role="tab" aria-selected="${teacherTab===k}" data-act="t-tab" data-t="${k}">${n}</button>`).join('')}</div>
     <div role="tabpanel">${body}</div>
   </div>`;
 }
@@ -1817,17 +1804,6 @@ function renderTeacherCert(sid, key){
   const back = `<a class="btn btn-ghost" href="#/teacher">العودة إلى لوحة المعلمة</a>`;
   $('#app').innerHTML = `<div class="wrap" style="padding:26px 20px 10px"><a class="back" href="#/teacher" style="text-decoration:none">‹ العودة إلى لوحة المعلمة</a><div style="margin-top:16px">${
     cert ? certHTMLFor(key, cert, st.name, st.cls) + certActions(back, 't') : `<div class="empty"><b>لم تُصدر هذه الشهادة بعد.</b><div class="row" style="justify-content:center;margin-top:14px">${back}</div></div>`}</div></div>`;
-}
-async function issueCerts(pairs){
-  tBusy = true; renderTeacher(); let ok = 0, fail = '';
-  for(const [sid, key] of pairs){
-    const st = tData.students.find(x => x.id === sid); if(!st) continue;
-    const data = certPayload(st, key); if(!data) continue;
-    try{ await rpc('mqn_issue_cert', {p_pin:tPin, p_student:sid, p_key:key, p_data:data}); st.certs[key] = {data, issuedAt:new Date().toISOString()}; ok++; }
-    catch(e){ fail = errMsg(e); break; }
-  }
-  tBusy = false; renderTeacher();
-  toast(fail ? fail : (ok === 1 ? 'صدرت الشهادة، وستظهر للطالبة في «شهاداتي».' : `صدرت ${ar(ok)} شهادات، وستظهر للطالبات في «شهاداتي».`));
 }
 function keyAnswer(q){
   if(q.type === 'mcq') return 'الإجابة: ' + q.options[q.answer];
@@ -1912,32 +1888,6 @@ document.addEventListener('click', e => {
       rpc('mqn_teacher_reset_pin', {p_teacher_pin:tPin, p_student:sid, p_new_pin:np})
         .then(() => { toast(`عُيّن الرمز الجديد للطالبة ${st ? st.name : ''}.`); $('#rp-pin').value = ''; })
         .catch(err => toast(errMsg(err)));
-      break;
-    }
-    case 't-issue': issueCerts([[el.dataset.sid, el.dataset.key]]); break;
-    case 't-issue-all': {
-      const pairs = []; tData.students.filter(st => !tClass || st.cls === tClass).forEach(st => eligible(st).forEach(k => pairs.push([st.id, k])));
-      modal(`<h3>إصدار ${ar(pairs.length)} ${pairs.length===1?'شهادة':'شهادات'}</h3><p>ستُعتمد كل الشهادات المستحقة${tClass ? ' في فصل ' + tClass : ''} بأفضل نتيجة لكل طالبة، وتظهر للطالبات في «شهاداتي». يمكنك إلغاء أي شهادة لاحقًا.</p><div class="row" style="justify-content:flex-end"><button class="btn btn-line-ink" data-act="close-modal">إلغاء</button><button class="btn btn-ink" data-act="t-issue-all-ok">أصدري الشهادات</button></div>`);
-      break;
-    }
-    case 't-issue-all-ok': {
-      closeModal();
-      const pairs = []; tData.students.filter(st => !tClass || st.cls === tClass).forEach(st => eligible(st).forEach(k => pairs.push([st.id, k])));
-      issueCerts(pairs); break;
-    }
-    case 't-revoke': {
-      const st = tData.students.find(x => x.id === el.dataset.sid), key = el.dataset.key;
-      modal(`<h3>إلغاء الشهادة</h3><p>ستُلغى شهادة «${key === 'all' ? 'الشهادة الكبرى' : CASE[key].title}» للطالبة ${esc(st.name)}، ولن تظهر لها بعد ذلك. يمكنك إصدارها مرة أخرى في أي وقت.</p><div class="row" style="justify-content:flex-end"><button class="btn btn-line-ink" data-act="close-modal">تراجع</button><button class="btn btn-ink" style="background:var(--bad)" data-act="t-revoke-ok" data-sid="${st.id}" data-key="${key}">ألغي الشهادة</button></div>`);
-      break;
-    }
-    case 't-revoke-ok': {
-      closeModal(); const sid = el.dataset.sid, key = el.dataset.key;
-      rpc('mqn_revoke_cert', {p_pin:tPin, p_student:sid, p_key:key}).then(() => { const st = tData.students.find(x => x.id === sid); if(st) delete st.certs[key]; toast('أُلغيت الشهادة.'); renderTeacher(); }).catch(err => toast(errMsg(err)));
-      break;
-    }
-    case 'check-certs': {
-      el.disabled = true;
-      refreshCerts().then(ok => { if(!ok) toast('تعذّر الاتصال. تحققي من الإنترنت وحاولي مرة أخرى.'); else toast('تم تحديث الشهادات.'); route(); });
       break;
     }
     case 'close-modal': closeModal(); break;
